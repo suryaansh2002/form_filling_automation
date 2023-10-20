@@ -1,15 +1,16 @@
-# Import necessary libraries and modules
+import tkinter as tk
 from io import BytesIO
+from reportlab.platypus import Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.pagesizes import letter, landscape
+import PyPDF2
 import os
 import openpyxl
 import xlsxwriter
 from selenium import webdriver
-import tkinter as tk
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.by import By
@@ -26,12 +27,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 import time
 from selenium.webdriver.support.ui import Select
 import warnings
-
-# Ignore DeprecationWarning
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
-# Define a dictionary with form input field names and their corresponding IDs
 d = {
     'reg_no': 'ctl00$ContentPlaceHolder1$txtApplicationNumber',
     'name': 'ctl00$ContentPlaceHolder1$txtNameAs12MarkCard',
@@ -66,9 +64,6 @@ d = {
     'roll_no': 'ContentPlaceHolder1_lblRollNo',
     'section': 'ContentPlaceHolder1_lblSection',
 }
-
-
-# Create a dictionary to map Excel cell names to field names
 cellMapping = {
     'A6': 'name',
     'D6': 'reg_no',
@@ -93,7 +88,6 @@ cellMapping = {
     'A20': 'address'
 }
 
-# Define lists of keys for different form pages
 page1_keys = ['reg_no', 'name', 'branch',
               'mobile_num', 'email_id', 'dob', 'blood_group']
 page2_keys = [
@@ -122,7 +116,6 @@ page4_keys = ['roll_no',
               'section']
 
 
-# Function to get student data from the website
 def getStudentData(driver):
     profile_url = 'https://slcm.manipal.edu/StudentProfile.aspx'
     driver.get(profile_url)
@@ -174,7 +167,6 @@ def getStudentData(driver):
     return result
 
 
-# Function to save student data to an Excel file
 def saveStudentData(result, regNo):
     workbook = openpyxl.load_workbook('student_details_template.xlsx')
     sheet = workbook['Sheet 1']
@@ -184,19 +176,28 @@ def saveStudentData(result, regNo):
     if not os.path.exists(regNo):
         os.makedirs(regNo)
 
-    workbook.save(regNo + '/' + regNo + ' Details.xlsx')
+    workbook.save(regNo + '/' + 'Page 1.xlsx')
 
 
-# Function to find and extract data for a student
+def text_to_be_exact(locator, text):
+    def condition(driver):
+        element_text = driver.find_element(*locator).text
+        return element_text == text
+
+    return condition
+
+
 def findDataForStudent(driver, regNo):
     print("Getting Data for " + regNo)
     # Clicking on 'Student Search'
 
-    a_element = driver.find_element_by_xpath("//a[span[text()='Student Search']]")
+    a_element = driver.find_element_by_xpath(
+        "//a[span[text()='Student Search']]")
     a_element.click()
 
     # Entering reg_no in input
-    input_element = driver.find_element_by_name('ctl00$ContentPlaceHolder1$txtEnrollmentNo')
+    input_element = driver.find_element_by_name(
+        'ctl00$ContentPlaceHolder1$txtEnrollmentNo')
     input_element.clear()
     input_element.send_keys(regNo)
 
@@ -222,8 +223,6 @@ def findDataForStudent(driver, regNo):
     values_to_select = [item for item in values_to_select if "&" not in item]
     select_element = Select(select_element)
     time.sleep(2)
-
-    tableId = "ContentPlaceHolder1_grvGradeSheet"
 
     df = pd.DataFrame(columns=['Sl No.', 'Subject Code', 'Subject Name', 'Actual Semester/Year',
                                'Grade', 'Credit', 'Revaluation1', 'Makeup Exam',
@@ -255,8 +254,8 @@ def findDataForStudent(driver, regNo):
     print("Going to Back to academics page: ")
     gradeUrl = 'https://slcm.manipal.edu/Academics.aspx'
     driver.get(gradeUrl)
-    time.sleep(5)
-
+    WebDriverWait(driver, 100).until(EC.url_to_be(gradeUrl))
+    time.sleep(2)
     print("Clicking on Internal marks sheet")
     a_element = driver.find_element_by_xpath(
         "//a[span[text()='Internal Marks']]")
@@ -271,6 +270,8 @@ def findDataForStudent(driver, regNo):
     values_to_select = [option.text for option in options]
     values_to_select = values_to_select[:-1]
     values_to_select = [item for item in values_to_select if "&" not in item]
+    values_to_select = values_to_select[1:]
+    print("Values: ", values_to_select)
     select_element = Select(select_element)
     time.sleep(2)
 
@@ -281,16 +282,23 @@ def findDataForStudent(driver, regNo):
             "ctl00$ContentPlaceHolder1$ddlInternalSemester"))
         print("Going to semester: " + value)
         select_element.select_by_value(value)
-        time.sleep(2)
+        time.sleep(4)
+        print("Clicking on show")
         element = driver.find_element_by_link_text("Show")
         element.click()
-        time.sleep(4)
+        print("Clicked on show... waiting to load")
+
+        WebDriverWait(driver, 300).until(text_to_be_exact(
+            (By.ID, "ContentPlaceHolder1_Labelsem"), value))
+        element = driver.find_element_by_id('ContentPlaceHolder1_Labelsem')
+        print(element.text)
+        print("Loaded")
+        time.sleep(2)
 
         h4_elements = driver.find_elements_by_css_selector('h4.panel-text')
         for h4 in h4_elements:
             text = h4.text
             text_list.append(text)
-
     print("Formating response...")
     for item in text_list:
         code = item[14:22]
@@ -305,12 +313,13 @@ def findDataForStudent(driver, regNo):
     return [result_df, gpaDict, cgpa]
 
 
-# Function to create a PDF report from the Excel data
-def createPdf(fileName):
+def createPdf(fileName, sem):
+    mapping = ['I', 'II', 'III', 'IV', 'V', 'VI']
     df = pd.read_excel(fileName+'.xlsx')
     df = df.fillna('')
     df = df.drop(df.columns[:2], axis=1)
-    pdf_file = fileName+'.pdf'
+    pdf_file = fileName.split('/')[0] + '/Page ' + \
+        str(mapping.index(sem)+3)+'.pdf'
 
     pdf = SimpleDocTemplate(pdf_file, pagesize=landscape(letter))
 
@@ -323,6 +332,8 @@ def createPdf(fileName):
     styles = getSampleStyleSheet()
     text1_style = styles['Normal']
     text1_style.fontSize = 12  #
+    text1_style.leftIndent = 0.6 * inch  # Adjust the value as needed
+
     text1_paragraph = Paragraph(text1, text1_style)
     elements.append(text1_paragraph)
 
@@ -369,7 +380,7 @@ def createPdf(fileName):
 
     elements.append(table)
 
-    elements.append(Spacer(1, 0.25 * inch))
+    elements.append(Spacer(1, 0.2 * inch))
     red_title_style = ParagraphStyle(
         name='RedTitleStyle', parent=styles['Title'])
     red_title_style.textColor = colors.red
@@ -402,15 +413,21 @@ def createPdf(fileName):
             ('BOTTOMPADDING', (i, 1), (i, 1), padding_y)
         ]))
 
-    elements.append(Spacer(1, 0.25 * inch))
+    elements.append(Spacer(1, 0.1 * inch))
     elements.append(second_table)
+    image_path = "logo.png"  # Update with the actual path to your image
+    image = Image(image_path, width=0.5 * inch, height=0.5 * inch)
+    image.hAlign = 'LEFT'
+    image.vAlign = 'TOP'
 
+
+# Add the image_with_text to the elements list
+    elements.insert(0, image)
+    elements.insert(1, Spacer(1, -0.4 * inch))
     pdf.build(elements)
-
     print(f'PDF saved to {pdf_file}')
 
 
-# Function to create Excel and PDF reports for a student
 def create(regNo, df, sem, gpaDict, cgpa):
     df_columns = ['Subject Code', 'Subject Name',
                   'Credit', 'Internal Marks', 'Grade']
@@ -429,14 +446,33 @@ def create(regNo, df, sem, gpaDict, cgpa):
         os.makedirs(regNo)
     fileName = regNo + '/' + regNo + ' Semester '+sem+' result'
     workbook.save(fileName+'.xlsx')
-    createPdf(fileName)
+    createPdf(fileName, sem)
+
     if os.path.exists(fileName + '.xlsx'):
         os.remove(fileName + '.xlsx')
 
     print(fileName + " saved successfully")
 
 
-# Main function to scrape the website
+def inputToOutputPdf(input_path, output_path):
+    with open(input_path, 'rb') as input_pdf:
+        # Create a PDF reader object
+        pdf_reader = PyPDF2.PdfFileReader(input_pdf)
+
+        # Create a PDF writer object
+        pdf_writer = PyPDF2.PdfFileWriter()
+
+        # Loop through each page in the input PDF and add it to the writer
+        for page_num in range(pdf_reader.getNumPages()):
+            page = pdf_reader.getPage(page_num)
+            pdf_writer.addPage(page)
+
+        # Open the output PDF file in write-binary mode
+        with open(output_path, 'wb') as output_pdf:
+            # Write the contents of the writer to the output file
+            pdf_writer.write(output_pdf)
+
+
 def scrape_website():
     input_text = entry.get("1.0", "end-1c")
     PATH = 'chromedriver.exe'
@@ -448,20 +484,24 @@ def scrape_website():
     driver.get(url)
 
     print("Waiting for login..")
-    time.sleep(20)
-    time.sleep(20)
+    WebDriverWait(driver, 100).until(EC.url_to_be(
+        "https://slcm.manipal.edu/studenthomepage.aspx"))
+    time.sleep(2)
     for reg_no in students:
         df, gpaDict, cgpa = findDataForStudent(driver, reg_no)
         df = df.dropna()
         l = list(set(df['Actual Semester/Year']))
         l.sort()
         print("Saving data for " + reg_no)
+        inputToOutputPdf('Mentor Details.pdf', reg_no + '/Page 2.pdf')
+        inputToOutputPdf('Extracuricular Details.pdf', reg_no + '/Page 11.pdf')
+
         for sem in l:
             create(reg_no, df, sem, gpaDict, cgpa)
         print("Going back to search page: ")
         driver.get("https://slcm.manipal.edu/FacultyHome.aspx")
         time.sleep(2)
-    # To go back to faculty home page and repeat process for all students
+#     To go back to faculty home page and repeat process for all students
     driver.quit()
 
 
