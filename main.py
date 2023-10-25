@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk  
 from io import BytesIO
 from reportlab.platypus import Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -485,7 +486,7 @@ def scrape_website():
 
     print("Waiting for login..")
     WebDriverWait(driver, 100).until(EC.url_to_be(
-        "https://slcm.manipal.edu/studenthomepage.aspx"))
+        "https://slcm.manipal.edu/FacultyHome.aspx"))
     time.sleep(2)
     for reg_no in students:
         df, gpaDict, cgpa = findDataForStudent(driver, reg_no)
@@ -494,7 +495,7 @@ def scrape_website():
         l.sort()
         print("Saving data for " + reg_no)
         inputToOutputPdf('Mentor Details.pdf', reg_no + '/Page 2.pdf')
-        inputToOutputPdf('Extracuricular Details.pdf', reg_no + '/Page 11.pdf')
+        inputToOutputPdf('Extracuricular Details.pdf', reg_no + '/Last Page.pdf')
 
         for sem in l:
             create(reg_no, df, sem, gpaDict, cgpa)
@@ -505,23 +506,46 @@ def scrape_website():
     driver.quit()
 
 
-# Create a GUI window
 window = tk.Tk()
-window.title("Mentor Form Web Scrapping")
+window.title("Mentor Form Web Scraping")
 
-window.geometry("400x150")
+window.geometry("500x350")
+
 window.configure(bg='#F0F0F0')
 
-label = tk.Label(window, text="Enter registration numbers, 1 on each line:", font=(
-    "Arial", 11), bg='#F0F0F0')
+style = ttk.Style()
+style.configure("Label.TLabel", font=("Arial", 12), background='#F0F0F0')
+
+label = ttk.Label(window, text="Enter registration numbers, one on each line:", style="Label.TLabel")
 label.pack(pady=10)
 
-entry = tk.Text(window,  height=5, font=("Arial", 12))
-entry.pack(pady=5)
+style.configure("Text.TText", font=("Arial", 12))
 
-submit_button = tk.Button(window, text="Submit",
-                          command=scrape_website, font=("Arial", 12))
+style.configure("TextFrame.TFrame", background="#FFFFFF", relief="ridge", borderwidth=3, padding=10, bordercolor="#D9D9D9")
+text_frame = ttk.Frame(window, style="TextFrame.TFrame")
+text_frame.pack(pady=5, padx=10, fill="both", expand=True)
+
+entry = tk.Text(text_frame, height=5, width=40, wrap=tk.WORD, font=("Arial", 12))
+entry.pack(fill="both", expand=True)
+
+
+style = ttk.Style()
+style.configure("Submit.TButton", font=("Arial", 12))
+submit_button = ttk.Button(window, text="Submit", style="Submit.TButton", command=scrape_website)
 submit_button.pack(pady=10)
-window.geometry("400x200")
 
+
+# Footer text
+footer_text = """
+Built By Suryaansh Rathinam(Batch 2020-24)\n
+Guided By: Dr Krishnamoorthy Makkithaya (HOD), Dr Sucharitha Shetty,
+           Mr Roshan David Jathana, Mr Ashwath Rao.\n
+Department of Computer Science
+"""
+
+# Create a label to display the footer text as HTML
+footer_label = tk.Label(window, text=footer_text, justify="left", font=("Arial", 10), bg='#F0F0F0')
+footer_label.pack(pady=10)
+
+# Start the Tkinter event loop
 window.mainloop()
