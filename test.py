@@ -341,7 +341,7 @@ def createPdf(fileName, sem):
     elements = []
 
     text1 = "Office of Quality Assurance"
-    text2 = "Department of Computer Science"
+    text2 = "Department of _____________________"
     text3 = 'Semester ' + \
         fileName.split('Semester')[1].split('result')[0] + 'Result'
     styles = getSampleStyleSheet()

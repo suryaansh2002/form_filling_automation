@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk  
+from tkinter import ttk
 from io import BytesIO
 from reportlab.platypus import Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -327,7 +327,7 @@ def createPdf(fileName, sem):
     elements = []
 
     text1 = "Office of Quality Assurance"
-    text2 = "Department of Computer Science"
+    text2 = "Department of _______________"
     text3 = 'Semester ' + \
         fileName.split('Semester')[1].split('result')[0] + 'Result'
     styles = getSampleStyleSheet()
@@ -495,7 +495,8 @@ def scrape_website():
         l.sort()
         print("Saving data for " + reg_no)
         inputToOutputPdf('Mentor Details.pdf', reg_no + '/Page 2.pdf')
-        inputToOutputPdf('Extracuricular Details.pdf', reg_no + '/Last Page.pdf')
+        inputToOutputPdf('Extracuricular Details.pdf',
+                         reg_no + '/Last Page.pdf')
 
         for sem in l:
             create(reg_no, df, sem, gpaDict, cgpa)
@@ -516,22 +517,26 @@ window.configure(bg='#F0F0F0')
 style = ttk.Style()
 style.configure("Label.TLabel", font=("Arial", 12), background='#F0F0F0')
 
-label = ttk.Label(window, text="Enter registration numbers, one on each line:", style="Label.TLabel")
+label = ttk.Label(
+    window, text="Enter registration numbers, one on each line:", style="Label.TLabel")
 label.pack(pady=10)
 
 style.configure("Text.TText", font=("Arial", 12))
 
-style.configure("TextFrame.TFrame", background="#FFFFFF", relief="ridge", borderwidth=3, padding=10, bordercolor="#D9D9D9")
+style.configure("TextFrame.TFrame", background="#FFFFFF",
+                relief="ridge", borderwidth=3, padding=10, bordercolor="#D9D9D9")
 text_frame = ttk.Frame(window, style="TextFrame.TFrame")
 text_frame.pack(pady=5, padx=10, fill="both", expand=True)
 
-entry = tk.Text(text_frame, height=5, width=40, wrap=tk.WORD, font=("Arial", 12))
+entry = tk.Text(text_frame, height=5, width=40,
+                wrap=tk.WORD, font=("Arial", 12))
 entry.pack(fill="both", expand=True)
 
 
 style = ttk.Style()
 style.configure("Submit.TButton", font=("Arial", 12))
-submit_button = ttk.Button(window, text="Submit", style="Submit.TButton", command=scrape_website)
+submit_button = ttk.Button(window, text="Submit",
+                           style="Submit.TButton", command=scrape_website)
 submit_button.pack(pady=10)
 
 
@@ -544,7 +549,8 @@ Department of Computer Science
 """
 
 # Create a label to display the footer text as HTML
-footer_label = tk.Label(window, text=footer_text, justify="left", font=("Arial", 10), bg='#F0F0F0')
+footer_label = tk.Label(window, text=footer_text,
+                        justify="left", font=("Arial", 10), bg='#F0F0F0')
 footer_label.pack(pady=10)
 
 # Start the Tkinter event loop
