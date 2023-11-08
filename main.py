@@ -1,3 +1,4 @@
+print("Please wait while the application loads...")
 import tkinter as tk
 from tkinter import ttk
 from io import BytesIO
@@ -17,6 +18,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import StaleElementReferenceException
 import time
 import pandas as pd
 import numpy as np
@@ -28,8 +31,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 import time
 from selenium.webdriver.support.ui import Select
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
+warnings.filterwarnings("ignore")
 
 d = {
     'reg_no': 'ctl00$ContentPlaceHolder1$txtApplicationNumber',
@@ -201,8 +203,8 @@ def findDataForStudent(driver, regNo):
         'ctl00$ContentPlaceHolder1$txtEnrollmentNo')
     input_element.clear()
     input_element.send_keys(regNo)
-
-    element = driver.find_element_by_link_text("Show")
+    ignored_exceptions=(NoSuchElementException,StaleElementReferenceException,)
+    element = WebDriverWait(driver, 600, ignored_exceptions=ignored_exceptions).until(EC.presence_of_element_located((By.LINK_TEXT, 'Show')))
     element.click()
 
     time.sleep(4)
@@ -285,11 +287,12 @@ def findDataForStudent(driver, regNo):
         select_element.select_by_value(value)
         time.sleep(4)
         print("Clicking on show")
-        element = driver.find_element_by_link_text("Show")
+        ignored_exceptions=(NoSuchElementException,StaleElementReferenceException,)
+        element = WebDriverWait(driver, 600, ignored_exceptions=ignored_exceptions ).until(EC.presence_of_element_located((By.LINK_TEXT, 'Show')))
         element.click()
         print("Clicked on show... waiting to load")
 
-        WebDriverWait(driver, 300).until(text_to_be_exact(
+        WebDriverWait(driver, 600).until(text_to_be_exact(
             (By.ID, "ContentPlaceHolder1_Labelsem"), value))
         element = driver.find_element_by_id('ContentPlaceHolder1_Labelsem')
         print(element.text)

@@ -28,7 +28,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 import time
 from selenium.webdriver.support.ui import Select
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore")
 
 
 d = {
@@ -298,7 +298,9 @@ def findDataForStudent(driver, regNo):
         select_element.select_by_value(value)
         time.sleep(4)
         print("Clicking on show")
-        element = driver.find_element_by_link_text("Show")
+        # element = driver.find_element_by_link_text("Show")
+        element = WebDriverWait(driver, 300 ).until(EC.presence_of_element_located((By.LINK_TEXT, 'Show')))
+
         element.click()
         print("Clicked on show... waiting to load")
 
@@ -341,7 +343,7 @@ def createPdf(fileName, sem):
     elements = []
 
     text1 = "Office of Quality Assurance"
-    text2 = "Department of _____________________"
+    text2 = "Department of Computer Science"
     text3 = 'Semester ' + \
         fileName.split('Semester')[1].split('result')[0] + 'Result'
     styles = getSampleStyleSheet()
@@ -565,3 +567,10 @@ footer_label.pack(pady=10)
 
 # Start the Tkinter event loop
 window.mainloop()
+
+"""
+Documenting Changes:
+2023-11-02: 
+1.  Line 31: Ignore all warnings.
+2. Line 302: Webdriver wait to avoid selenium stale element exception.
+"""
