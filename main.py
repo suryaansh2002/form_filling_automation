@@ -1,20 +1,25 @@
-# Import necessary libraries and modules
+print("Please wait while the application loads...")
+import tkinter as tk
+from tkinter import ttk
 from io import BytesIO
+from reportlab.platypus import Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.pagesizes import letter, landscape
+import PyPDF2
 import os
 import openpyxl
 import xlsxwriter
 from selenium import webdriver
-import tkinter as tk
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import StaleElementReferenceException
 import time
 import pandas as pd
 import numpy as np
@@ -26,12 +31,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 import time
 from selenium.webdriver.support.ui import Select
 import warnings
+warnings.filterwarnings("ignore")
+from webdriver_manager.chrome import ChromeDriverManager
 
-# Ignore DeprecationWarning
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-
-# Define a dictionary with form input field names and their corresponding IDs
 d = {
     'reg_no': 'ctl00$ContentPlaceHolder1$txtApplicationNumber',
     'name': 'ctl00$ContentPlaceHolder1$txtNameAs12MarkCard',
@@ -66,9 +68,6 @@ d = {
     'roll_no': 'ContentPlaceHolder1_lblRollNo',
     'section': 'ContentPlaceHolder1_lblSection',
 }
-
-
-# Create a dictionary to map Excel cell names to field names
 cellMapping = {
     'A6': 'name',
     'D6': 'reg_no',
@@ -93,7 +92,6 @@ cellMapping = {
     'A20': 'address'
 }
 
-# Define lists of keys for different form pages
 page1_keys = ['reg_no', 'name', 'branch',
               'mobile_num', 'email_id', 'dob', 'blood_group']
 page2_keys = [
@@ -122,7 +120,6 @@ page4_keys = ['roll_no',
               'section']
 
 
-# Function to get student data from the website
 def getStudentData(driver):
     profile_url = 'https://slcm.manipal.edu/StudentProfile.aspx'
     driver.get(profile_url)
@@ -174,7 +171,6 @@ def getStudentData(driver):
     return result
 
 
-# Function to save student data to an Excel file
 def saveStudentData(result, regNo):
     workbook = openpyxl.load_workbook('student_details_template.xlsx')
     sheet = workbook['Sheet 1']
@@ -184,23 +180,32 @@ def saveStudentData(result, regNo):
     if not os.path.exists(regNo):
         os.makedirs(regNo)
 
-    workbook.save(regNo + '/' + regNo + ' Details.xlsx')
+    workbook.save(regNo + '/' + 'Page 1.xlsx')
 
 
-# Function to find and extract data for a student
+def text_to_be_exact(locator, text):
+    def condition(driver):
+        element_text = driver.find_element(*locator).text
+        return element_text == text
+
+    return condition
+
+
 def findDataForStudent(driver, regNo):
     print("Getting Data for " + regNo)
     # Clicking on 'Student Search'
 
-    a_element = driver.find_element_by_xpath("//a[span[text()='Student Search']]")
+    a_element = driver.find_element_by_xpath(
+        "//a[span[text()='Student Search']]")
     a_element.click()
 
     # Entering reg_no in input
-    input_element = driver.find_element_by_name('ctl00$ContentPlaceHolder1$txtEnrollmentNo')
+    input_element = driver.find_element_by_name(
+        'ctl00$ContentPlaceHolder1$txtEnrollmentNo')
     input_element.clear()
     input_element.send_keys(regNo)
-
-    element = driver.find_element_by_link_text("Show")
+    ignored_exceptions=(NoSuchElementException,StaleElementReferenceException,)
+    element = WebDriverWait(driver, 600, ignored_exceptions=ignored_exceptions).until(EC.presence_of_element_located((By.LINK_TEXT, 'Show')))
     element.click()
 
     time.sleep(4)
@@ -222,8 +227,6 @@ def findDataForStudent(driver, regNo):
     values_to_select = [item for item in values_to_select if "&" not in item]
     select_element = Select(select_element)
     time.sleep(2)
-
-    tableId = "ContentPlaceHolder1_grvGradeSheet"
 
     df = pd.DataFrame(columns=['Sl No.', 'Subject Code', 'Subject Name', 'Actual Semester/Year',
                                'Grade', 'Credit', 'Revaluation1', 'Makeup Exam',
@@ -255,8 +258,8 @@ def findDataForStudent(driver, regNo):
     print("Going to Back to academics page: ")
     gradeUrl = 'https://slcm.manipal.edu/Academics.aspx'
     driver.get(gradeUrl)
-    time.sleep(5)
-
+    WebDriverWait(driver, 100).until(EC.url_to_be(gradeUrl))
+    time.sleep(2)
     print("Clicking on Internal marks sheet")
     a_element = driver.find_element_by_xpath(
         "//a[span[text()='Internal Marks']]")
@@ -271,6 +274,8 @@ def findDataForStudent(driver, regNo):
     values_to_select = [option.text for option in options]
     values_to_select = values_to_select[:-1]
     values_to_select = [item for item in values_to_select if "&" not in item]
+    values_to_select = values_to_select[1:]
+    print("Values: ", values_to_select)
     select_element = Select(select_element)
     time.sleep(2)
 
@@ -281,16 +286,24 @@ def findDataForStudent(driver, regNo):
             "ctl00$ContentPlaceHolder1$ddlInternalSemester"))
         print("Going to semester: " + value)
         select_element.select_by_value(value)
-        time.sleep(2)
-        element = driver.find_element_by_link_text("Show")
-        element.click()
         time.sleep(4)
+        print("Clicking on show")
+        ignored_exceptions=(NoSuchElementException,StaleElementReferenceException,)
+        element = WebDriverWait(driver, 600, ignored_exceptions=ignored_exceptions ).until(EC.presence_of_element_located((By.LINK_TEXT, 'Show')))
+        element.click()
+        print("Clicked on show... waiting to load")
+
+        WebDriverWait(driver, 600).until(text_to_be_exact(
+            (By.ID, "ContentPlaceHolder1_Labelsem"), value))
+        element = driver.find_element_by_id('ContentPlaceHolder1_Labelsem')
+        print(element.text)
+        print("Loaded")
+        time.sleep(2)
 
         h4_elements = driver.find_elements_by_css_selector('h4.panel-text')
         for h4 in h4_elements:
             text = h4.text
             text_list.append(text)
-
     print("Formating response...")
     for item in text_list:
         code = item[14:22]
@@ -305,24 +318,27 @@ def findDataForStudent(driver, regNo):
     return [result_df, gpaDict, cgpa]
 
 
-# Function to create a PDF report from the Excel data
-def createPdf(fileName):
+def createPdf(fileName, sem):
+    mapping = ['I', 'II', 'III', 'IV', 'V', 'VI']
     df = pd.read_excel(fileName+'.xlsx')
     df = df.fillna('')
     df = df.drop(df.columns[:2], axis=1)
-    pdf_file = fileName+'.pdf'
+    pdf_file = fileName.split('/')[0] + '/Page ' + \
+        str(mapping.index(sem)+3)+'.pdf'
 
     pdf = SimpleDocTemplate(pdf_file, pagesize=landscape(letter))
 
     elements = []
 
     text1 = "Office of Quality Assurance"
-    text2 = "Department of Computer Science"
+    text2 = "Department of _______________"
     text3 = 'Semester ' + \
         fileName.split('Semester')[1].split('result')[0] + 'Result'
     styles = getSampleStyleSheet()
     text1_style = styles['Normal']
     text1_style.fontSize = 12  #
+    text1_style.leftIndent = 0.6 * inch  # Adjust the value as needed
+
     text1_paragraph = Paragraph(text1, text1_style)
     elements.append(text1_paragraph)
 
@@ -369,7 +385,7 @@ def createPdf(fileName):
 
     elements.append(table)
 
-    elements.append(Spacer(1, 0.25 * inch))
+    elements.append(Spacer(1, 0.2 * inch))
     red_title_style = ParagraphStyle(
         name='RedTitleStyle', parent=styles['Title'])
     red_title_style.textColor = colors.red
@@ -402,15 +418,21 @@ def createPdf(fileName):
             ('BOTTOMPADDING', (i, 1), (i, 1), padding_y)
         ]))
 
-    elements.append(Spacer(1, 0.25 * inch))
+    elements.append(Spacer(1, 0.1 * inch))
     elements.append(second_table)
+    image_path = "logo.png"  # Update with the actual path to your image
+    image = Image(image_path, width=0.5 * inch, height=0.5 * inch)
+    image.hAlign = 'LEFT'
+    image.vAlign = 'TOP'
 
+
+# Add the image_with_text to the elements list
+    elements.insert(0, image)
+    elements.insert(1, Spacer(1, -0.4 * inch))
     pdf.build(elements)
-
     print(f'PDF saved to {pdf_file}')
 
 
-# Function to create Excel and PDF reports for a student
 def create(regNo, df, sem, gpaDict, cgpa):
     df_columns = ['Subject Code', 'Subject Name',
                   'Credit', 'Internal Marks', 'Grade']
@@ -429,59 +451,120 @@ def create(regNo, df, sem, gpaDict, cgpa):
         os.makedirs(regNo)
     fileName = regNo + '/' + regNo + ' Semester '+sem+' result'
     workbook.save(fileName+'.xlsx')
-    createPdf(fileName)
+    createPdf(fileName, sem)
+
     if os.path.exists(fileName + '.xlsx'):
         os.remove(fileName + '.xlsx')
 
     print(fileName + " saved successfully")
 
 
-# Main function to scrape the website
+def inputToOutputPdf(input_path, output_path):
+    with open(input_path, 'rb') as input_pdf:
+        # Create a PDF reader object
+        pdf_reader = PyPDF2.PdfFileReader(input_pdf)
+
+        # Create a PDF writer object
+        pdf_writer = PyPDF2.PdfFileWriter()
+
+        # Loop through each page in the input PDF and add it to the writer
+        for page_num in range(pdf_reader.getNumPages()):
+            page = pdf_reader.getPage(page_num)
+            pdf_writer.addPage(page)
+
+        # Open the output PDF file in write-binary mode
+        with open(output_path, 'wb') as output_pdf:
+            # Write the contents of the writer to the output file
+            pdf_writer.write(output_pdf)
+
 def scrape_website():
-    input_text = entry.get("1.0", "end-1c")
-    PATH = 'chromedriver.exe'
+    input_text = entry.get()
     students = input_text.split('\n')
     print(students)
-    chrome_service = ChromeService(executable_path=PATH)
+    print("Getting chrome driver...")
+    chromedriver_path = ChromeDriverManager().install()
+
+    # Update the system's PATH variable
+    os.environ["PATH"] += os.pathsep + os.path.dirname(chromedriver_path)
+
+    # Now you can use webdriver.Chrome() without specifying the executable_path
+    driver = webdriver.Chrome()
+
     url = 'https://slcm.manipal.edu/'
-    driver = webdriver.Chrome(service=chrome_service)
     driver.get(url)
 
     print("Waiting for login..")
-    time.sleep(20)
-    time.sleep(20)
+    WebDriverWait(driver, 100).until(EC.url_to_be(
+        "https://slcm.manipal.edu/FacultyHome.aspx"))
+    time.sleep(2)
     for reg_no in students:
         df, gpaDict, cgpa = findDataForStudent(driver, reg_no)
         df = df.dropna()
         l = list(set(df['Actual Semester/Year']))
         l.sort()
         print("Saving data for " + reg_no)
+        inputToOutputPdf('Mentor Details.pdf', reg_no + '/Page 2.pdf')
+        inputToOutputPdf('Extracuricular Details.pdf',
+                         reg_no + '/Last Page.pdf')
+
         for sem in l:
             create(reg_no, df, sem, gpaDict, cgpa)
         print("Going back to search page: ")
         driver.get("https://slcm.manipal.edu/FacultyHome.aspx")
+        WebDriverWait(driver, 100).until(EC.url_to_be(
+        "https://slcm.manipal.edu/FacultyHome.aspx"))
         time.sleep(2)
-    # To go back to faculty home page and repeat process for all students
+#     To go back to faculty home page and repeat process for all students
+    window.destroy()
     driver.quit()
 
 
-# Create a GUI window
 window = tk.Tk()
-window.title("Mentor Form Web Scrapping")
+window.title("Mentor Form Web Scraping")
 
-window.geometry("400x150")
+window.geometry("500x350")
+
 window.configure(bg='#F0F0F0')
 
-label = tk.Label(window, text="Enter registration numbers, 1 on each line:", font=(
-    "Arial", 11), bg='#F0F0F0')
+style = ttk.Style()
+style.configure("Label.TLabel", font=("Arial", 12), background='#F0F0F0')
+
+label = ttk.Label(
+    window, text="Enter student's registration number:", style="Label.TLabel")
 label.pack(pady=10)
 
-entry = tk.Text(window,  height=5, font=("Arial", 12))
-entry.pack(pady=5)
+style.configure("Text.TText", font=("Arial", 12))
 
-submit_button = tk.Button(window, text="Submit",
-                          command=scrape_website, font=("Arial", 12))
+style.configure("TextFrame.TFrame", background="#FFFFFF",
+                relief="ridge", borderwidth=3, padding=10, bordercolor="#D9D9D9")
+# text_frame = ttk.Frame(window, style="TextFrame.TFrame")
+def validate_entry(new_value):
+    return len(new_value) <= 9
+
+style.configure("Entry.TEntry", font=("Arial", 14), padding=(5, 5), borderwidth=2, relief="solid", width=20)
+entry_text = tk.StringVar()  # the text in your entry
+entry = ttk.Entry(window, textvariable=entry_text, style="Entry.TEntry", validate="key", validatecommand=(window.register(validate_entry), "%P"))
+entry.pack(pady=10)
+
+style = ttk.Style()
+style.configure("Submit.TButton", font=("Arial", 12))
+submit_button = ttk.Button(window, text="Submit",
+                           style="Submit.TButton", command=scrape_website)
 submit_button.pack(pady=10)
-window.geometry("400x200")
 
+
+# Footer text
+footer_text = """
+Built By Suryaansh Rathinam(Batch 2020-24)\n
+Guided By: Dr Krishnamoorthy Makkithaya (HOD), Dr Sucharitha Shetty,
+           Mr Roshan David Jathana, Mr Ashwath Rao.\n
+Department of Computer Science
+"""
+
+# Create a label to display the footer text as HTML
+footer_label = tk.Label(window, text=footer_text,
+                        justify="left", font=("Arial", 10), bg='#F0F0F0')
+footer_label.pack(pady=10)
+
+# Start the Tkinter event loop
 window.mainloop()
