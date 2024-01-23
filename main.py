@@ -523,6 +523,9 @@ window = tk.Tk()
 window.title("Mentor Form Web Scraping")
 
 window.geometry("500x350")
+window.title("Mentor Form Web Scraping")
+
+window.geometry("500x350")
 
 window.configure(bg='#F0F0F0')
 
